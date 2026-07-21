@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>Gabbiano Parkplatzliste</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    :root{
+      --bg:#f3f4f6; --card:#ffffff; --text:#111827; --muted:#6b7280;
+      --primary:#111827; --danger:#b91c1c; --border:#d1d5db;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:760px;margin:auto;padding:16px}
+    .header{background:var(--primary);color:#fff;padding:20px;border-radius:16px;margin-bottom:16px}
+    .header h1{margin:0 0 6px;font-size:25px}
+    .header p{margin:0;opacity:.9;line-height:1.4}
+    .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    label{display:block;font-weight:700;margin-bottom:7px}
+    input,button{font-size:18px}
+    input{width:100%;padding:15px;border:2px solid var(--border);border-radius:12px;text-transform:uppercase}
+    input:focus{outline:none;border-color:var(--primary)}
+    .row{display:grid;grid-template-columns:1fr auto;gap:10px}
+    button{border:0;border-radius:12px;padding:14px 16px;font-weight:700;cursor:pointer}
+    .primary{background:var(--primary);color:#fff}
+    .secondary{background:#e5e7eb;color:#111827}
+    .danger{background:#fee2e2;color:var(--danger)}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .count{font-weight:700;margin-bottom:10px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #e5e7eb;padding:12px 6px;text-align:left}
+    th{font-size:14px;color:var(--muted)}
+    td.plate{font-weight:800;font-size:20px;letter-spacing:1px}
+    .delete{padding:8px 10px;font-size:14px}
+    .hint{font-size:14px;color:var(--muted);line-height:1.45}
+    .notice{background:#fff7ed;border:1px solid #fdba74;padding:12px;border-radius:12px;margin-top:12px}
+    @media(max-width:560px){
+      .row{grid-template-columns:1fr}
+      .actions{grid-template-columns:1fr}
+    }
+    @media print{
+      body{background:#fff}
+      .no-print{display:none!important}
+      .wrap{max-width:none;padding:0}
+      .card,.header{box-shadow:none;border-radius:0}
+      .header{background:#fff;color:#000;border-bottom:2px solid #000}
+      table{font-size:14px}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="header">
+    <h1>Gabbiano Parkplatzliste</h1>
+    <p>Kundenkennzeichen werden für bis zu 3 Stunden freigeschaltet.</p>
+  </section>
+
+  <section class="card no-print">
+    <label for="plate">Kennzeichen eintragen</label>
+    <div class="row">
+      <input id="plate" maxlength="14" autocomplete="off" placeholder="z. B. HRO-AB 123" />
+      <button class="primary" onclick="addPlate()">Speichern</button>
+    </div>
+    <div class="notice">
+      Bitte Kennzeichen vollständig und deutlich eingeben. Für falsch oder unvollständig eingetragene Kennzeichen kann keine Freischaltung garantiert werden.
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="count" id="count">0 von 20 Fahrzeugen</div>
+    <table>
+      <thead><tr><th>Nr.</th><th>Kennzeichen</th><th>Uhrzeit</th><th class="no-print">Aktion</th></tr></thead>
+      <tbody id="list"></tbody>
+    </table>
+    <p class="hint" id="empty">Noch keine Kennzeichen eingetragen.</p>
+  </section>
+
+  <section class="card no-print">
+    <div class="actions">
+      <button class="secondary" onclick="window.print()">Als PDF drucken</button>
+      <button class="secondary" onclick="downloadCSV()">CSV herunterladen</button>
+      <button class="secondary" onclick="sendEmail()">E-Mail vorbereiten</button>
+      <button class="danger" onclick="clearDay()">Tagesliste löschen</button>
+    </div>
+    <p class="hint">Die Daten werden nur auf diesem Gerät im Browser gespeichert.</p>
+  </section>
+</div>
+
+<script>
+const MAX = 20;
+const today = new Date().toISOString().slice(0,10);
+const storageKey = "gabbiano_parking_" + today;
+let entries = JSON.parse(localStorage.getItem(storageKey) || "[]");
+
+function normalizePlate(value){
+  return value.trim().toUpperCase().replace(/\s+/g," ");
+}
+function save(){
+  localStorage.setItem(storageKey, JSON.stringify(entries));
+  render();
+}
+function addPlate(){
+  const input = document.getElementById("plate");
+  const plate = normalizePlate(input.value);
+  if(!plate){ alert("Bitte ein Kennzeichen eingeben."); return; }
+  if(entries.length >= MAX){ alert("Maximal 20 Fahrzeuge pro Tagesliste."); return; }
+  if(entries.some(e => e.plate === plate)){ alert("Dieses Kennzeichen ist bereits eingetragen."); return; }
+  const time = new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+  entries.push({plate,time});
+  input.value="";
+  save();
+  input.focus();
+}
+function removePlate(i){
+  if(confirm("Kennzeichen wirklich löschen?")){
+    entries.splice(i,1); save();
+  }
+}
+function clearDay(){
+  if(confirm("Die komplette Tagesliste löschen?")){
+    entries=[]; save();
+  }
+}
+function render(){
+  const tbody = document.getElementById("list");
+  tbody.innerHTML = "";
+  entries.forEach((e,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${i+1}</td><td class="plate">${e.plate}</td><td>${e.time}</td>
+      <td class="no-print"><button class="danger delete" onclick="removePlate(${i})">Löschen</button></td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById("count").textContent = `${entries.length} von ${MAX} Fahrzeugen – ${new Date().toLocaleDateString("de-DE")}`;
+  document.getElementById("empty").style.display = entries.length ? "none" : "block";
+}
+function csvContent(){
+  const rows=[["Nr.","Kennzeichen","Datum","Uhrzeit"]];
+  entries.forEach((e,i)=>rows.push([i+1,e.plate,new Date().toLocaleDateString("de-DE"),e.time]));
+  return rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("\n");
+}
+function downloadCSV(){
+  const blob=new Blob(["\ufeff"+csvContent()],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`Parkplatzliste_${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function sendEmail(){
+  const subject=encodeURIComponent(`Parkplatzliste ${new Date().toLocaleDateString("de-DE")}`);
+  const bodyLines=entries.map((e,i)=>`${i+1}. ${e.plate} – ${e.time}`);
+  const body=encodeURIComponent(`Guten Tag,\n\nanbei die Kennzeichenliste für den ${new Date().toLocaleDateString("de-DE")}:\n\n${bodyLines.join("\n")}\n\nMit freundlichen Grüßen\nGabbiano Restaurant`);
+  window.location.href=`mailto:?subject=${subject}&body=${body}`;
+}
+document.getElementById("plate").addEventListener("keydown",e=>{if(e.key==="Enter") addPlate();});
+render();
+</script>
+</body>
+</html>
